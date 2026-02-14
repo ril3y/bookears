@@ -20,6 +20,8 @@ services:
       - HF_HOME=/models
       - TORCH_HOME=/models
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
     runtime: nvidia
     deploy:
       resources:

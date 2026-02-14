@@ -30,6 +30,10 @@ ENV MODEL_CACHE_DIR=/models
 ENV HF_HOME=/models
 ENV TORCH_HOME=/models
 
+# Require NVIDIA GPU — container won't start without one
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
 EXPOSE 8200
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=3 \

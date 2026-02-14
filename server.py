@@ -69,6 +69,26 @@ async def lifespan(app: FastAPI):
     global dual_loaded, sequential_mode
 
     logger.info("Starting Bookears v%s", VERSION)
+
+    # ── GPU requirement check ──
+    if DEVICE == "cuda" and not torch.cuda.is_available():
+        logger.fatal(
+            "CUDA GPU required but not available. "
+            "Run with --gpus or deploy.resources.reservations.devices in docker-compose. "
+            "Set DEVICE=cpu to force CPU mode (very slow, not recommended)."
+        )
+        raise SystemExit(1)
+
+    if DEVICE == "cuda":
+        gpu_name = torch.cuda.get_device_name(0)
+        vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+        logger.info("GPU: %s (%.1f GB VRAM)", gpu_name, vram_gb)
+        if vram_gb < 6.0:
+            logger.warning(
+                "GPU has %.1f GB VRAM — dual-loading needs ~5.5 GB. "
+                "Sequential fallback mode likely.", vram_gb
+            )
+
     logger.info("Whisper: %s | Parakeet: %s | Device: %s", MODEL_WHISPER, MODEL_PARAKEET, DEVICE)
 
     # Try dual-loading both models
