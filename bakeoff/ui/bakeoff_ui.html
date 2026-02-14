@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STT Bake-Off v2</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; padding-bottom: 60px; }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; color: #38bdf8; }
+  .subtitle { color: #94a3b8; font-size: 0.85rem; margin-bottom: 16px; }
+  h2 { font-size: 1.1rem; color: #38bdf8; margin-bottom: 10px; }
+  h3 { font-size: 0.95rem; color: #e2e8f0; margin-bottom: 8px; }
+
+  .controls { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+  .controls label { font-size: 0.85rem; color: #94a3b8; }
+  .controls select, .controls input { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-radius: 6px; padding: 6px 10px; font-size: 0.85rem; }
+  .controls button { background: #2563eb; color: #fff; border: none; border-radius: 6px; padding: 8px 16px; cursor: pointer; font-size: 0.85rem; }
+  .controls button:hover { background: #1d4ed8; }
+  .controls button.secondary { background: #334155; }
+  .controls button.secondary:hover { background: #475569; }
+  .controls button.active { background: #16a34a; }
+
+  /* Meta info bar */
+  .meta-bar { display: flex; gap: 20px; flex-wrap: wrap; background: #1e293b; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 0.8rem; color: #94a3b8; }
+  .meta-bar .meta-item { display: flex; gap: 6px; align-items: center; }
+  .meta-bar .meta-value { color: #e2e8f0; font-weight: 600; }
+
+  /* Tabs */
+  .tab-bar { display: flex; gap: 4px; margin-bottom: 16px; }
+  .tab { padding: 8px 16px; border-radius: 6px 6px 0 0; background: #1e293b; color: #94a3b8; cursor: pointer; font-size: 0.85rem; border: 1px solid #334155; border-bottom: none; }
+  .tab.active { background: #0f172a; color: #38bdf8; border-color: #38bdf8; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  th { background: #1e293b; color: #94a3b8; text-align: left; padding: 8px 10px; position: sticky; top: 0; cursor: pointer; user-select: none; white-space: nowrap; }
+  th:hover { color: #38bdf8; }
+  td { padding: 7px 10px; border-bottom: 1px solid #1e293b; }
+  tr:hover td { background: #1e293b; }
+  .score-cell { font-weight: 600; text-align: center; }
+  .score-100 { color: #4ade80; }
+  .score-high { color: #a3e635; }
+  .score-mid { color: #fbbf24; }
+  .score-low { color: #f87171; }
+  .score-zero { color: #64748b; }
+  .time-cell { color: #94a3b8; text-align: right; }
+  .medal { font-size: 1rem; }
+
+  /* Cards */
+  .card { background: #1e293b; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+  .card-title { font-size: 1.05rem; font-weight: 600; color: #f1f5f9; }
+  .card-meta { font-size: 0.8rem; color: #94a3b8; margin-top: 4px; }
+  .card-meta span { margin-right: 16px; }
+  .card-meta .label { color: #64748b; }
+
+  /* Metadata comparison */
+  .meta-compare { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; margin-top: 12px; }
+  .meta-field { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px; }
+  .meta-field-label { font-size: 0.7rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+  .meta-field-truth { font-size: 0.82rem; color: #4ade80; margin-bottom: 4px; }
+  .meta-field-stt { font-size: 0.82rem; color: #fbbf24; }
+  .meta-field-match { border-color: #16a34a; }
+  .meta-field-miss { border-color: #991b1b; }
+
+  /* Transcription grid */
+  .trans-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 12px; }
+  .trans-card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px; position: relative; }
+  .trans-card.winner { border-color: #4ade80; }
+  .trans-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .trans-model { font-weight: 600; font-size: 0.85rem; color: #e2e8f0; }
+  .trans-prompt-tag { font-size: 0.7rem; padding: 2px 6px; border-radius: 3px; background: #334155; color: #94a3b8; margin-left: 6px; }
+  .trans-score { font-weight: 700; font-size: 1rem; padding: 2px 8px; border-radius: 4px; }
+  .trans-time { font-size: 0.75rem; color: #64748b; }
+  .trans-text { font-size: 0.8rem; line-height: 1.5; color: #cbd5e1; max-height: 200px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; margin-top: 8px; }
+  .trans-text .hl { background: #365314; color: #a3e635; padding: 1px 2px; border-radius: 2px; }
+  .trans-scores-bar { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .trans-scores-bar .field-score { font-size: 0.7rem; padding: 2px 6px; border-radius: 3px; background: #334155; }
+
+  /* Prompt comparison cards */
+  .prompt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .prompt-summary { background: #1e293b; border-radius: 10px; padding: 16px; border: 2px solid transparent; }
+  .prompt-summary.best { border-color: #4ade80; }
+  .prompt-summary h3 { font-size: 0.95rem; color: #38bdf8; margin-bottom: 4px; }
+  .prompt-summary .prompt-desc { font-size: 0.75rem; color: #64748b; margin-bottom: 10px; }
+  .prompt-stat { display: flex; justify-content: space-between; padding: 3px 0; font-size: 0.82rem; }
+  .prompt-stat .stat-label { color: #94a3b8; }
+  .prompt-stat .stat-value { font-weight: 600; }
+  .prompt-text-preview { font-size: 0.72rem; color: #64748b; margin-top: 8px; padding: 8px; background: #0f172a; border-radius: 4px; max-height: 60px; overflow-y: auto; font-style: italic; }
+
+  /* Heatmap colors for prompt comparison table */
+  .heat-best { background: rgba(74, 222, 128, 0.2); }
+  .heat-worst { background: rgba(248, 113, 113, 0.15); }
+
+  /* Upload area */
+  .upload-area { border: 2px dashed #334155; border-radius: 10px; padding: 30px; text-align: center; margin-bottom: 20px; cursor: pointer; }
+  .upload-area:hover { border-color: #38bdf8; }
+  .upload-area.drag-over { border-color: #4ade80; background: rgba(74, 222, 128, 0.05); }
+  #fileInput { display: none; }
+
+  /* Status bar */
+  .status { position: fixed; bottom: 0; left: 0; right: 0; background: #1e293b; border-top: 1px solid #334155; padding: 8px 20px; display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; z-index: 100; }
+  .status .live { color: #4ade80; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+  .progress-bar { height: 3px; background: #334155; border-radius: 2px; margin-bottom: 16px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, #2563eb, #38bdf8); transition: width 0.5s; }
+
+  .pill { display: inline-block; font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; margin-right: 4px; }
+  .pill-prompt { background: #1e3a5f; color: #7dd3fc; }
+  .pill-model { background: #3b1f4a; color: #c084fc; }
+</style>
+</head>
+<body>
+
+<h1>STT Model Bake-Off v2</h1>
+<p class="subtitle">Multi-prompt audiobook metadata extraction comparison</p>
+
+<div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+  <p style="font-size: 1.1rem; margin-bottom: 8px;">Drop bake-off JSON results here or click to browse</p>
+  <p style="font-size: 0.8rem; color: #64748b;">Accepts v2 JSON output from stt_bakeoff.py</p>
+  <input type="file" id="fileInput" accept=".json">
+</div>
+
+<div id="app" style="display:none;">
+  <div class="meta-bar" id="metaBar"></div>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+
+  <div class="controls">
+    <div>
+      <label>Prompt:</label>
+      <select id="filterPrompt">
+        <option value="all">All Prompts</option>
+      </select>
+    </div>
+    <div>
+      <label>Sort by:</label>
+      <select id="sortBy">
+        <option value="overall">Overall Score</option>
+        <option value="title">Title</option>
+        <option value="authors">Authors</option>
+        <option value="narrators">Narrators</option>
+        <option value="series">Series</option>
+        <option value="publisher">Publisher</option>
+        <option value="time">Speed</option>
+      </select>
+    </div>
+    <button class="secondary" onclick="exportRankings()">Export JSON</button>
+    <button id="refreshBtn" onclick="toggleAutoRefresh()">Auto-Refresh</button>
+    <span id="refreshStatus" style="font-size:0.8rem;color:#94a3b8;"></span>
+  </div>
+
+  <div class="tab-bar">
+    <div class="tab active" data-tab="rankings">Rankings</div>
+    <div class="tab" data-tab="prompts">Prompt Comparison</div>
+    <div class="tab" data-tab="books">By Book</div>
+    <div class="tab" data-tab="transcriptions">Transcriptions</div>
+  </div>
+
+  <div id="tab-rankings" class="tab-content active"></div>
+  <div id="tab-prompts" class="tab-content"></div>
+  <div id="tab-books" class="tab-content"></div>
+  <div id="tab-transcriptions" class="tab-content"></div>
+</div>
+
+<div class="status" id="statusBar" style="display:none;">
+  <span id="statusText"></span>
+  <span id="statusLive"></span>
+</div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let rawData = { meta: {}, books: [], runs: [] };
+let currentSort = { col: 'overall', desc: true };
+let refreshInterval = null;
+let lastJsonUrl = null;
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+const uploadArea = document.getElementById('uploadArea');
+const fileInput = document.getElementById('fileInput');
+
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('drag-over'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('drag-over'));
+uploadArea.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadArea.classList.remove('drag-over');
+  if (e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files.length) loadFile(e.target.files[0]); });
+
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
+document.getElementById('sortBy').addEventListener('change', e => {
+  currentSort.col = e.target.value;
+  currentSort.desc = e.target.value !== 'time';
+  renderAll();
+});
+document.getElementById('filterPrompt').addEventListener('change', () => renderAll());
+
+// URL param loading
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.has('file')) {
+  lastJsonUrl = urlParams.get('file');
+  fetchResults();
+  // Auto-start refresh
+  setTimeout(() => toggleAutoRefresh(), 500);
+}
+
+function fetchResults() {
+  if (!lastJsonUrl) return;
+  fetch(lastJsonUrl + '?t=' + Date.now())
+    .then(r => r.json())
+    .then(d => { if (d && d.meta) { rawData = d; processData(); }})
+    .catch(() => {});
+}
+
+function loadFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const d = JSON.parse(e.target.result);
+      // Support v1 format (array) — convert to v2
+      if (Array.isArray(d)) {
+        rawData = convertV1(d);
+      } else {
+        rawData = d;
+      }
+      processData();
+      document.getElementById('app').style.display = 'block';
+      uploadArea.style.display = 'none';
+    } catch (err) {
+      alert('Invalid JSON: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function convertV1(arr) {
+  // V1: [{book, runs: [{label, model, device, transcription, scores, time_seconds}]}]
+  const books = arr.map(br => br.book);
+  const runs = [];
+  arr.forEach((br, idx) => {
+    (br.runs || []).forEach(r => {
+      runs.push({
+        model: r.model || r.label, model_name: r.label,
+        prompt: 'none', prompt_name: 'No Prompt', prompt_text: null,
+        book_idx: idx, transcription: r.transcription,
+        scores: r.scores, time_seconds: r.time_seconds,
+        error: r.error,
+      });
+    });
+  });
+  return { meta: { device: arr[0]?.runs?.[0]?.device || '?' }, books, runs };
+}
+
+// ── Process & Render ─────────────────────────────────────────────────────────
+function processData() {
+  document.getElementById('app').style.display = 'block';
+  uploadArea.style.display = 'none';
+
+  // Populate prompt filter
+  const promptKeys = [...new Set(rawData.runs.map(r => r.prompt))];
+  const sel = document.getElementById('filterPrompt');
+  const current = sel.value;
+  sel.innerHTML = '<option value="all">All Prompts</option>';
+  promptKeys.forEach(pk => {
+    const name = rawData.runs.find(r => r.prompt === pk)?.prompt_name || pk;
+    const o = document.createElement('option');
+    o.value = pk;
+    o.textContent = name;
+    sel.appendChild(o);
+  });
+  sel.value = current;
+
+  // Meta bar
+  const m = rawData.meta;
+  const totalExpected = (m.models?.length || 0) * (m.prompts?.length || 0) * (m.num_books || rawData.books.length);
+  const completedRuns = rawData.runs.filter(r => !r.error).length;
+  const pct = totalExpected > 0 ? Math.round(completedRuns / totalExpected * 100) : 0;
+  document.getElementById('progressFill').style.width = pct + '%';
+
+  document.getElementById('metaBar').innerHTML = [
+    item('Books', rawData.books.length),
+    item('Models', m.models?.length || new Set(rawData.runs.map(r => r.model)).size),
+    item('Prompts', m.prompts?.length || new Set(rawData.runs.map(r => r.prompt)).size),
+    item('Runs', `${completedRuns}` + (totalExpected ? ` / ${totalExpected}` : '')),
+    item('Device', m.device || '?'),
+    item('Duration', (m.duration || '?') + 's'),
+    m.timestamp ? item('Started', m.timestamp) : '',
+  ].join('');
+
+  renderAll();
+  updateStatus();
+}
+
+function item(label, value) {
+  return `<div class="meta-item"><span>${label}:</span> <span class="meta-value">${value}</span></div>`;
+}
+
+function renderAll() {
+  renderRankings();
+  renderPromptComparison();
+  renderBooks();
+  renderTranscriptions();
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function avg(arr) { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0; }
+function scoreClass(v) {
+  if (v == null) return '';
+  if (v === 100) return 'score-100';
+  if (v >= 80) return 'score-high';
+  if (v >= 50) return 'score-mid';
+  if (v > 0) return 'score-low';
+  return 'score-zero';
+}
+function scoreBg(v) {
+  if (v == null) return 'transparent';
+  if (v >= 90) return 'rgba(74, 222, 128, 0.15)';
+  if (v >= 70) return 'rgba(163, 230, 53, 0.1)';
+  if (v >= 40) return 'rgba(251, 191, 36, 0.1)';
+  return 'rgba(248, 113, 113, 0.1)';
+}
+function escapeHtml(s) { return s ? s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; }
+function escapeRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+const medals = ['&#x1F947;', '&#x1F948;', '&#x1F949;'];
+
+function filteredRuns() {
+  const pf = document.getElementById('filterPrompt').value;
+  let runs = rawData.runs.filter(r => !r.error && r.scores);
+  if (pf !== 'all') runs = runs.filter(r => r.prompt === pf);
+  return runs;
+}
+
+// ── Tab: Rankings ────────────────────────────────────────────────────────────
+function renderRankings() {
+  const runs = filteredRuns();
+  const promptFilter = document.getElementById('filterPrompt').value;
+
+  // Group by model (or model+prompt if "all")
+  const groups = {};
+  runs.forEach(r => {
+    const key = promptFilter === 'all' ? r.model : `${r.model}|${r.prompt}`;
+    const label = promptFilter === 'all' ? r.model_name : `${r.model_name}`;
+    if (!groups[key]) groups[key] = { label, model: r.model, prompt: r.prompt, prompt_name: r.prompt_name, runs: [] };
+    groups[key].runs.push(r);
+  });
+
+  let entries = Object.values(groups).map(g => {
+    const sc = field => g.runs.map(r => r.scores[field]).filter(v => v != null);
+    return {
+      ...g,
+      overall: avg(sc('overall')),
+      title: avg(sc('title')),
+      authors: avg(sc('authors')),
+      narrators: sc('narrators'),
+      series: sc('series'),
+      publisher: sc('publisher'),
+      times: g.runs.map(r => r.time_seconds),
+    };
+  });
+
+  // Sort
+  entries.sort((a, b) => {
+    let av, bv;
+    const col = currentSort.col;
+    if (col === 'time') { av = avg(a.times); bv = avg(b.times); }
+    else if (['narrators','series','publisher'].includes(col)) { av = avg(a[col]); bv = avg(b[col]); }
+    else { av = a[col] || 0; bv = b[col] || 0; }
+    return currentSort.desc ? bv - av : av - bv;
+  });
+
+  const showPromptCol = promptFilter === 'all' && new Set(runs.map(r => r.prompt)).size > 1;
+
+  const container = document.getElementById('tab-rankings');
+  container.innerHTML = `
+    <h2>Model Rankings ${promptFilter !== 'all' ? '(' + (entries[0]?.prompt_name || promptFilter) + ')' : '(All Prompts Averaged)'}</h2>
+    <table>
+      <thead><tr>
+        <th>#</th><th>Model</th>
+        ${showPromptCol ? '' : ''}
+        <th onclick="sortCol('overall')">Overall ${sortArrow('overall')}</th>
+        <th onclick="sortCol('title')">Title ${sortArrow('title')}</th>
+        <th onclick="sortCol('authors')">Authors ${sortArrow('authors')}</th>
+        <th onclick="sortCol('narrators')">Narrators ${sortArrow('narrators')}</th>
+        <th onclick="sortCol('series')">Series ${sortArrow('series')}</th>
+        <th onclick="sortCol('publisher')">Publisher ${sortArrow('publisher')}</th>
+        <th onclick="sortCol('time')">Avg Time ${sortArrow('time')}</th>
+        <th>Runs</th>
+      </tr></thead>
+      <tbody>
+        ${entries.map((e, i) => {
+          const n = e.narrators.length ? avg(e.narrators) : null;
+          const s = e.series.length ? avg(e.series) : null;
+          const p = e.publisher.length ? avg(e.publisher) : null;
+          const t = avg(e.times);
+          const rank = i < 3 ? medals[i] + ' ' : (i + 1) + '.';
+          return `<tr>
+            <td>${rank}</td>
+            <td><strong>${escapeHtml(e.label)}</strong></td>
+            <td class="score-cell ${scoreClass(e.overall)}" style="background:${scoreBg(e.overall)}">${e.overall.toFixed(1)}</td>
+            <td class="score-cell ${scoreClass(e.title)}">${e.title.toFixed(0)}</td>
+            <td class="score-cell ${scoreClass(e.authors)}">${e.authors.toFixed(0)}</td>
+            <td class="score-cell ${scoreClass(n)}">${n != null ? n.toFixed(0) : '-'}</td>
+            <td class="score-cell ${scoreClass(s)}">${s != null ? s.toFixed(0) : '-'}</td>
+            <td class="score-cell ${scoreClass(p)}">${p != null ? p.toFixed(0) : '-'}</td>
+            <td class="time-cell">${t.toFixed(1)}s</td>
+            <td style="text-align:center">${e.runs.length}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
+function sortCol(col) {
+  if (currentSort.col === col) currentSort.desc = !currentSort.desc;
+  else { currentSort.col = col; currentSort.desc = col !== 'time'; }
+  renderAll();
+}
+function sortArrow(col) {
+  if (currentSort.col !== col) return '';
+  return currentSort.desc ? '<span style="font-size:0.7rem">&#9660;</span>' : '<span style="font-size:0.7rem">&#9650;</span>';
+}
+
+// ── Tab: Prompt Comparison ───────────────────────────────────────────────────
+function renderPromptComparison() {
+  const runs = rawData.runs.filter(r => !r.error && r.scores);
+  const prompts = [...new Set(runs.map(r => r.prompt))];
+  const models = [...new Set(runs.map(r => r.model))];
+  const fields = ['overall', 'title', 'authors', 'narrators', 'series', 'publisher'];
+
+  // Per-prompt summary
+  const promptStats = {};
+  let bestOverall = -1;
+  let bestPrompt = null;
+  prompts.forEach(pk => {
+    const pr = runs.filter(r => r.prompt === pk);
+    const stats = {};
+    fields.forEach(f => {
+      const vals = pr.map(r => r.scores[f]).filter(v => v != null);
+      stats[f] = vals.length ? avg(vals) : null;
+    });
+    stats.time = avg(pr.map(r => r.time_seconds));
+    stats.count = pr.length;
+    stats.name = pr[0]?.prompt_name || pk;
+    stats.text = pr[0]?.prompt_text || null;
+    promptStats[pk] = stats;
+    if (stats.overall > bestOverall) { bestOverall = stats.overall; bestPrompt = pk; }
+  });
+
+  // Summary cards
+  let html = '<h2>Prompt Strategy Comparison</h2><div class="prompt-grid">';
+  prompts.forEach(pk => {
+    const s = promptStats[pk];
+    const isBest = pk === bestPrompt;
+    html += `<div class="prompt-summary ${isBest ? 'best' : ''}">
+      <h3>${escapeHtml(s.name)} ${isBest ? '<span style="color:#4ade80;font-size:0.75rem"> BEST</span>' : ''}</h3>
+      <div class="prompt-desc">${s.count} runs</div>
+      ${fields.map(f => {
+        const v = s[f];
+        return `<div class="prompt-stat">
+          <span class="stat-label">${f}</span>
+          <span class="stat-value ${scoreClass(v)}">${v != null ? v.toFixed(1) : '-'}</span>
+        </div>`;
+      }).join('')}
+      <div class="prompt-stat"><span class="stat-label">avg time</span><span class="stat-value">${s.time.toFixed(1)}s</span></div>
+      ${s.text ? `<div class="prompt-text-preview">${escapeHtml(s.text).substring(0, 200)}</div>` : '<div class="prompt-text-preview">(no prompt)</div>'}
+    </div>`;
+  });
+  html += '</div>';
+
+  // Heatmap table: model x prompt
+  if (prompts.length > 1 && models.length > 0) {
+    html += '<h2 style="margin-top:24px;">Model x Prompt Heatmap (Overall Score)</h2>';
+    html += '<table><thead><tr><th>Model</th>';
+    prompts.forEach(pk => {
+      html += `<th style="text-align:center">${escapeHtml(promptStats[pk].name)}</th>`;
+    });
+    html += '<th style="text-align:center">Best Prompt</th></tr></thead><tbody>';
+
+    models.forEach(mk => {
+      const modelName = runs.find(r => r.model === mk)?.model_name || mk;
+      let rowBest = -1, rowBestPrompt = '';
+      const cells = prompts.map(pk => {
+        const mr = runs.filter(r => r.model === mk && r.prompt === pk);
+        const v = mr.length ? avg(mr.map(r => r.scores.overall)) : null;
+        if (v != null && v > rowBest) { rowBest = v; rowBestPrompt = promptStats[pk].name; }
+        return v;
+      });
+      html += `<tr><td><strong>${escapeHtml(modelName)}</strong></td>`;
+      const maxCell = Math.max(...cells.filter(v => v != null));
+      const minCell = Math.min(...cells.filter(v => v != null));
+      cells.forEach(v => {
+        const cls = v === maxCell ? 'heat-best' : (v === minCell && cells.filter(c => c != null).length > 1 ? 'heat-worst' : '');
+        html += `<td class="score-cell ${scoreClass(v)} ${cls}" style="background:${scoreBg(v)}">${v != null ? v.toFixed(1) : '-'}</td>`;
+      });
+      html += `<td style="text-align:center;font-size:0.8rem;color:#94a3b8">${escapeHtml(rowBestPrompt)}</td></tr>`;
+    });
+    html += '</tbody></table>';
+  }
+
+  document.getElementById('tab-prompts').innerHTML = html;
+}
+
+// ── Tab: By Book ─────────────────────────────────────────────────────────────
+function renderBooks() {
+  const runs = filteredRuns();
+  const books = rawData.books;
+  const promptFilter = document.getElementById('filterPrompt').value;
+
+  let html = '';
+  books.forEach((book, idx) => {
+    const bookRuns = runs.filter(r => r.book_idx === idx).sort((a, b) => (b.scores?.overall || 0) - (a.scores?.overall || 0));
+    if (bookRuns.length === 0) return;
+
+    const series = (book.series || []).map(s => `${s.name} #${s.sequence || '?'}`).join(', ') || 'none';
+    const bestRun = bookRuns[0];
+
+    html += `<div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">${escapeHtml(book.title)}</div>
+          <div class="card-meta">
+            <span><span class="label">Author:</span> ${escapeHtml((book.authors||[]).join(', '))}</span>
+            <span><span class="label">Narrator:</span> ${escapeHtml((book.narrators||[]).join(', '))||'?'}</span>
+            <span><span class="label">Series:</span> ${escapeHtml(series)}</span>
+            <span><span class="label">Publisher:</span> ${escapeHtml(book.publisher||'?')}</span>
+          </div>
+        </div>
+      </div>`;
+
+    // Metadata comparison: ground truth vs best STT result
+    if (bestRun) {
+      html += `<h3 style="margin-bottom:6px;font-size:0.82rem;color:#94a3b8;">Ground Truth vs Best STT (${escapeHtml(bestRun.model_name)} | ${escapeHtml(bestRun.prompt_name)})</h3>`;
+      html += '<div class="meta-compare">';
+      const metaFields = [
+        { key: 'title', truth: book.title, score: bestRun.scores.title },
+        { key: 'authors', truth: (book.authors||[]).join(', '), score: bestRun.scores.authors },
+        { key: 'narrators', truth: (book.narrators||[]).join(', '), score: bestRun.scores.narrators },
+        { key: 'series', truth: (book.series||[]).map(s => `${s.name} #${s.sequence}`).join(', '), score: bestRun.scores.series },
+        { key: 'publisher', truth: book.publisher, score: bestRun.scores.publisher },
+      ];
+      metaFields.forEach(f => {
+        if (!f.truth && f.score == null) return;
+        const matchCls = f.score >= 80 ? 'meta-field-match' : (f.score != null && f.score < 40 ? 'meta-field-miss' : '');
+        html += `<div class="meta-field ${matchCls}">
+          <div class="meta-field-label">${f.key} ${f.score != null ? `<span class="${scoreClass(f.score)}" style="font-weight:600">${f.score}</span>` : ''}</div>
+          <div class="meta-field-truth">&#x2713; ${escapeHtml(f.truth || '(none)')}</div>
+          <div class="meta-field-stt">&#x266A; <em>${extractFromTranscription(bestRun.transcription, f.key, book)}</em></div>
+        </div>`;
+      });
+      html += '</div>';
+    }
+
+    // Per-book rankings table
+    html += `<table style="margin-top:12px;">
+      <thead><tr><th>#</th><th>Model</th><th>Prompt</th><th>Overall</th><th>Title</th><th>Authors</th><th>Narrators</th><th>Series</th><th>Publisher</th><th>Time</th></tr></thead>
+      <tbody>`;
+    bookRuns.forEach((r, i) => {
+      const s = r.scores;
+      const rank = i < 3 ? medals[i] : (i + 1);
+      html += `<tr>
+        <td>${rank}</td>
+        <td>${escapeHtml(r.model_name)}</td>
+        <td><span class="pill pill-prompt">${escapeHtml(r.prompt_name)}</span></td>
+        <td class="score-cell ${scoreClass(s.overall)}" style="background:${scoreBg(s.overall)}">${s.overall}</td>
+        <td class="score-cell ${scoreClass(s.title)}">${s.title}</td>
+        <td class="score-cell ${scoreClass(s.authors)}">${s.authors}</td>
+        <td class="score-cell ${scoreClass(s.narrators)}">${s.narrators != null ? s.narrators : '-'}</td>
+        <td class="score-cell ${scoreClass(s.series)}">${s.series != null ? s.series : '-'}</td>
+        <td class="score-cell ${scoreClass(s.publisher)}">${s.publisher != null ? s.publisher : '-'}</td>
+        <td class="time-cell">${r.time_seconds}s</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+  });
+
+  document.getElementById('tab-books').innerHTML = html || '<p style="color:#64748b;padding:20px;">No results yet.</p>';
+}
+
+function extractFromTranscription(text, field, book) {
+  // Try to find approximate match location in the transcription for display
+  if (!text) return '(no transcription)';
+  const norm = t => (t||'').toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
+  let targets = [];
+  if (field === 'title') targets = [book.title];
+  else if (field === 'authors') targets = book.authors || [];
+  else if (field === 'narrators') targets = book.narrators || [];
+  else if (field === 'series') targets = (book.series||[]).map(s => s.name);
+  else if (field === 'publisher') targets = [book.publisher].filter(Boolean);
+
+  if (!targets.length) return '(no ground truth)';
+
+  // Find best matching substring for the first target
+  const target = norm(targets[0]);
+  if (!target) return '(empty)';
+  const words = norm(text).split(' ');
+  const targetLen = target.split(' ').length;
+  let best = 0, bestChunk = '';
+  for (let wl = Math.max(1, targetLen - 1); wl <= targetLen + 2 && wl <= words.length; wl++) {
+    for (let i = 0; i <= words.length - wl; i++) {
+      const chunk = words.slice(i, i + wl).join(' ');
+      const ratio = similarity(chunk, target);
+      if (ratio > best) { best = ratio; bestChunk = chunk; }
+    }
+  }
+  if (best >= 0.5) return bestChunk + ` (${Math.round(best*100)}% match)`;
+  return '(not found)';
+}
+
+function similarity(a, b) {
+  if (a === b) return 1;
+  const longer = a.length > b.length ? a : b;
+  const shorter = a.length > b.length ? b : a;
+  if (longer.length === 0) return 1;
+  // Simple Levenshtein-based ratio
+  const costs = [];
+  for (let i = 0; i <= longer.length; i++) {
+    let lastVal = i;
+    for (let j = 0; j <= shorter.length; j++) {
+      if (i === 0) { costs[j] = j; }
+      else if (j > 0) {
+        let newVal = costs[j - 1];
+        if (longer[i - 1] !== shorter[j - 1]) newVal = Math.min(Math.min(newVal, lastVal), costs[j]) + 1;
+        costs[j - 1] = lastVal;
+        lastVal = newVal;
+      }
+    }
+    if (i > 0) costs[shorter.length] = lastVal;
+  }
+  return (longer.length - costs[shorter.length]) / longer.length;
+}
+
+// ── Tab: Transcriptions ──────────────────────────────────────────────────────
+function renderTranscriptions() {
+  const runs = filteredRuns();
+  const books = rawData.books;
+  let html = '';
+
+  books.forEach((book, idx) => {
+    const bookRuns = runs.filter(r => r.book_idx === idx).sort((a, b) => (b.scores?.overall || 0) - (a.scores?.overall || 0));
+    if (!bookRuns.length) return;
+    const bestScore = bookRuns[0]?.scores?.overall || 0;
+
+    html += `<div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">${escapeHtml(book.title)} &mdash; ${escapeHtml((book.authors||[]).join(', '))}</div>
+          <div class="card-meta">
+            <span><span class="label">Narrator:</span> ${escapeHtml((book.narrators||[]).join(', '))||'?'}</span>
+            <span><span class="label">Series:</span> ${escapeHtml((book.series||[]).map(s => s.name+' #'+s.sequence).join(', '))||'none'}</span>
+            <span><span class="label">Publisher:</span> ${escapeHtml(book.publisher||'?')}</span>
+          </div>
+        </div>
+      </div>
+      <div class="trans-grid">`;
+
+    bookRuns.forEach(r => {
+      const isWinner = r.scores.overall === bestScore && bestScore > 0;
+      const text = highlightMetadata(r.transcription || '', book);
+      html += `<div class="trans-card ${isWinner ? 'winner' : ''}">
+        <div class="trans-header">
+          <div>
+            <span class="trans-model">${escapeHtml(r.model_name)}</span>
+            <span class="trans-prompt-tag">${escapeHtml(r.prompt_name)}</span>
+          </div>
+          <span class="trans-score ${scoreClass(r.scores.overall)}" style="background:${scoreBg(r.scores.overall)}">${r.scores.overall}</span>
+        </div>
+        <span class="trans-time">${r.time_seconds}s</span>
+        <div class="trans-scores-bar">
+          ${Object.entries(r.scores).filter(([k]) => k !== 'overall').map(([k, v]) =>
+            `<span class="field-score ${scoreClass(v)}">${k}: ${v != null ? v : '-'}</span>`
+          ).join('')}
+        </div>
+        <div class="trans-text">${text}</div>
+      </div>`;
+    });
+
+    html += '</div></div>';
+  });
+
+  document.getElementById('tab-transcriptions').innerHTML = html || '<p style="color:#64748b;padding:20px;">No results yet.</p>';
+}
+
+function highlightMetadata(text, book) {
+  if (!text) return '<em style="color:#64748b">No transcription</em>';
+  let html = escapeHtml(text);
+  const targets = [
+    ...(book.authors || []),
+    ...(book.narrators || []),
+    book.title,
+    book.publisher,
+    ...(book.series || []).map(s => s.name),
+  ].filter(Boolean);
+
+  for (const target of targets) {
+    const escaped = escapeRegex(escapeHtml(target));
+    const re = new RegExp(`(${escaped})`, 'gi');
+    html = html.replace(re, '<span class="hl">$1</span>');
+  }
+  return html;
+}
+
+// ── Tab switching ────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === 'tab-' + name));
+}
+
+// ── Auto-refresh ─────────────────────────────────────────────────────────────
+function toggleAutoRefresh() {
+  const btn = document.getElementById('refreshBtn');
+  if (refreshInterval) {
+    clearInterval(refreshInterval);
+    refreshInterval = null;
+    btn.classList.remove('active');
+    btn.textContent = 'Auto-Refresh';
+    document.getElementById('refreshStatus').textContent = '';
+    document.getElementById('statusBar').style.display = 'none';
+    return;
+  }
+  if (!lastJsonUrl) {
+    lastJsonUrl = prompt('Enter URL to JSON results file:', '/results.json');
+    if (!lastJsonUrl) return;
+  }
+  btn.classList.add('active');
+  btn.textContent = 'Stop Refresh';
+  document.getElementById('statusBar').style.display = 'flex';
+  document.getElementById('statusLive').innerHTML = '<span class="live">&#x25CF; LIVE</span>';
+  refreshInterval = setInterval(fetchResults, 4000);
+  document.getElementById('refreshStatus').textContent = 'every 4s';
+}
+
+function updateStatus() {
+  const total = rawData.runs.filter(r => !r.error).length;
+  const models = new Set(rawData.runs.map(r => r.model));
+  const prompts = new Set(rawData.runs.map(r => r.prompt));
+  document.getElementById('statusText').textContent = `${rawData.books.length} books | ${total} runs | ${models.size} models | ${prompts.size} prompts`;
+}
+
+function exportRankings() {
+  const blob = new Blob([JSON.stringify(rawData, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'stt_bakeoff_v2.json';
+  a.click();
+}
+</script>
+</body>
+</html>

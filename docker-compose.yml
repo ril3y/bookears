@@ -1,0 +1,33 @@
+services:
+  bookears:
+    build: .
+    container_name: bookears
+    ports:
+      - "${PORT:-8200}:8200"
+    volumes:
+      # Bind-mount host model cache so nothing gets re-downloaded
+      - /mnt/llm-models/stt-models:/models
+      # Bakeoff results persist on host
+      - ./results:/app/results
+    environment:
+      - PORT=8200
+      - HOST=0.0.0.0
+      - DEVICE=cuda
+      - MODEL_WHISPER=${MODEL_WHISPER:-large-v3-turbo}
+      - MODEL_PARAKEET=${MODEL_PARAKEET:-nvidia/parakeet-tdt-0.6b-v2}
+      - COMPUTE_TYPE=${COMPUTE_TYPE:-float16}
+      - MODEL_CACHE_DIR=/models
+      - HF_HOME=/models
+      - TORCH_HOME=/models
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    # Keep shared memory large enough for PyTorch CUDA tensors
+    shm_size: '2gb'
